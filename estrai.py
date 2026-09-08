@@ -119,6 +119,86 @@ class EstrattorePDF:
             return None
     
     def estrai_movimenti_estratto(self, testo):
+        """Estrae movimenti da estratti conto con formati diversi."""
+        righe = [r.strip() for r in testo.split("\n") if r.strip()]
+        movimenti = []
+        
+        # Pattern per date in vari formati
+        pattern_data = re.compile(
+            r'^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})$|^(\d{1,2}\s+\w+\s+\d{4})$'
+        )
+        
+        # Pattern per numeri (importi)
+        pattern_numero = re.compile(r'^[-+]?[\d\.,\s€]+$')
+        
+        i = 0
+        while i < len(righe):
+            riga = righe[i]
+            
+            # Cerca date anche dentro righe più complesse
+            match_data = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', riga)
+            
+            if match_data:
+                data = self.normalizza_data(match_data.group(1))
+                
+                # Cerca descrizione nelle righe successive
+                descrizione = ""
+                j = i + 1
+                while j < len(righe) and j < i + 5:
+                    if pattern_numero.match(righe[j]):
+                        break
+                    descrizione += " " + righe[j]
+                    j += 1
+                
+                descrizione = descrizione.strip()
+                i = j
+                
+                # Cerca importi nelle righe successive
+                entrata = None
+                uscita = None
+                saldo = None
+                
+                while i < len(righe) and i < j + 3:
+                    if pattern_numero.match(righe[i]):
+                        importo = self.normalizza_numero(righe[i])
+                        if importo is not None:
+                            # Determina se è entrata o uscita
+                            if 'PAGAM' in descrizione.upper() or 'ADDEBITO' in descrizione.upper() or 'PRELIEVO' in descrizione.upper() or 'COMMISSIONE' in descrizione.upper() or 'PENALE' in descrizione.upper() or 'MORA' in descrizione.upper() or 'TAX' in descrizione.upper() or 'BOLLO' in descrizione.upper() or 'RECUPERO' in descrizione.upper() or 'CONVERSIONE' in descrizione.upper() or 'GIROCONTO' in descrizione.upper() or 'IMPOSTA' in descrizione.upper() or 'CANONE' in descrizione.upper():
+                                uscita = importo
+                            elif 'BONIFICO' in descrizione.upper() or 'STIPENDIO' in descrizione.upper() or 'ACCREDITO' in descrizione.upper() or 'RIMBORSO' in descrizione.upper() or 'INCASSO' in descrizione.upper():
+                                entrata = importo
+                            else:
+                                # Controlla se il testo originale ha segno negativo
+                                if '-' in righe[i]:
+                                    uscita = importo
+                                elif '+' in righe[i]:
+                                    entrata = importo
+                                else:
+                                    # Default: se la descrizione contiene parole di spesa
+                                    if any(p in descrizione.upper() for p in self.parole_uscita):
+                                        uscita = importo
+                                    else:
+                                        entrata = importo
+                        
+                        # Il secondo numero potrebbe essere il saldo
+                        if saldo is None:
+                            saldo = importo
+                        i += 1
+                    else:
+                        i += 1
+                
+                if descrizione and (entrata or uscita):
+                    movimenti.append({
+                        'data': data,
+                        'descrizione': descrizione,
+                        'entrata': entrata,
+                        'uscita': uscita,
+                        'saldo': saldo
+                    })
+            else:
+                i += 1
+        
+        return movimenti
         righe = [r.strip() for r in testo.split("\n") if r.strip()]
         movimenti = []
         
