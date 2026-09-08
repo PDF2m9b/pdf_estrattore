@@ -1,0 +1,169 @@
+{
+  "movimenti": [
+    {
+      "data": "03/09/2025",
+      "descrizione": "BONIFICO STIPENDO SETTEMBRE",
+      "entrata": 2450.0,
+      "uscita": null,
+      "saldo": 10900.0
+    },
+    {
+      "data": "03/09/2025",
+      "descrizione": "PAGAM. FORNITORE ROSSI SRL",
+      "entrata": null,
+      "uscita": 735.5,
+      "saldo": 10164.5
+    },
+    {
+      "data": "09/09/2025",
+      "descrizione": "CANONE AFFITTO UFFICIO",
+      "entrata": null,
+      "uscita": 1200.0,
+      "saldo": 8964.5
+    },
+    {
+      "data": "10/09/2025",
+      "descrizione": "POS SUPERMERCATO ABC",
+      "entrata": null,
+      "uscita": 86.4,
+      "saldo": 8878.1
+    },
+    {
+      "data": "11/09/2025",
+      "descrizione": "BONIFICO CLIENTE ALFA TECNICA",
+      "entrata": 1850.75,
+      "uscita": null,
+      "saldo": 10728.85
+    },
+    {
+      "data": "12/09/2025",
+      "descrizione": "PAGAM. FATT. 184 / BIANCHI SRL",
+      "entrata": null,
+      "uscita": 420.0,
+      "saldo": 10308.85
+    },
+    {
+      "data": "13/09/2025",
+      "descrizione": "ADDEBITO TELEFONO / INTERNET",
+      "entrata": null,
+      "uscita": 59.9,
+      "saldo": 10248.95
+    },
+    {
+      "data": "15/09/2025",
+      "descrizione": "INCASSO CLIENTE BETA SRL",
+      "entrata": 980.5,
+      "uscita": null,
+      "saldo": 11229.45
+    },
+    {
+      "data": "16/09/2025",
+      "descrizione": "PAGAMENTO ENERGIA ELETTRICA",
+      "entrata": null,
+      "uscita": 312.85,
+      "saldo": 10916.6
+    },
+    {
+      "data": "17/09/2025",
+      "descrizione": "bonifico stipendio (err.)",
+      "entrata": 1275.0,
+      "uscita": null,
+      "saldo": 12191.6
+    },
+    {
+      "data": "18/09/2025",
+      "descrizione": "PAGAM. FORNITORE ROSI S.R.L.",
+      "entrata": null,
+      "uscita": 215.3,
+      "saldo": 11976.3
+    },
+    {
+      "data": "20/09/2025",
+      "descrizione": "PRELIEVO ATM",
+      "entrata": null,
+      "uscita": 200.0,
+      "saldo": 11776.3
+    },
+    {
+      "data": "21/09/2025",
+      "descrizione": "RIMBORSO SPESE TRASFERTA",
+      "entrata": 340.0,
+      "uscita": null,
+      "saldo": 12116.3
+    },
+    {
+      "data": "22/09/2025",
+      "descrizione": "PAGAMENTO F24",
+      "entrata": null,
+      "uscita": 640.25,
+      "saldo": 11476.05
+    },
+    {
+      "data": "23/09/2025",
+      "descrizione": "COMMISSIONI BANCA",
+      "entrata": null,
+      "uscita": 18.75,
+      "saldo": 11457.3
+    },
+    {
+      "data": "24/09/2025",
+      "descrizione": "BONIFICO CLIENTE GAMMA",
+      "entrata": 2100.0,
+      "uscita": null,
+      "saldo": 13557.3
+    },
+    {
+      "data": "25/09/2025",
+      "descrizione": "ACQ. MATERIALE UFFICIO",
+      "entrata": null,
+      "uscita": 147.2,
+      "saldo": 13410.1
+    },
+    {
+      "data": "26/09/2025",
+      "descrizione": "PAGAM. FORNITORE DELTA SNC",
+      "entrata": null,
+      "uscita": 525.0,
+      "saldo": 12885.1
+    },
+    {
+      "data": "28/09/2025",
+      "descrizione": "INCASSO FATTURA N. 77",
+      "entrata": 1325.45,
+      "uscita": null,
+      "saldo": 14210.55
+    },
+    {
+      "data": "29/09/2025",
+      "descrizione": "PAGAMENTO ASSICURAZIONE",
+      "entrata": null,
+      "uscita": 188.6,
+      "saldo": 14021.95
+    },
+    {
+      "data": "30/09/2025",
+      "descrizione": "BONIFICO CLIENTE OMEGA SRL",
+      "entrata": 1450.0,
+      "uscita": null,
+      "saldo": 15471.95
+    },
+    {
+      "data": "01/10/2025",
+      "descrizione": "PAGAM. FORNITORE VERDI SRL",
+      "entrata": null,
+      "uscita": 245.0,
+      "saldo": 15226.95
+    },
+    {
+      "data": "02/10/2025",
+      "descrizione": "ADDEBITO CARTA AZIENDALE",
+      "entrata": null,
+      "uscita": 92.4,
+      "saldo": 15134.55
+    }
+  ],
+  "totale_entrate": 11771.7,
+  "totale_uscite": 5087.15,
+  "saldo_netto": 6684.55,
+  "numero_movimenti": 23
+}

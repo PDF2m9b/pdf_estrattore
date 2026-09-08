@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estrattore PDF - Professionale</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: #16213e;
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #4ecca3;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #aaa;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #4ecca3;
+            border-radius: 15px;
+            padding: 50px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 30px;
+        }
+        
+        .drop-zone:hover {
+            background: rgba(78, 204, 163, 0.1);
+            border-color: #6ee7c7;
+        }
+        
+        .drop-zone.dragover {
+            background: rgba(78, 204, 163, 0.2);
+            border-color: #6ee7c7;
+        }
+        
+        .drop-zone p {
+            font-size: 1.2em;
+            color: #ccc;
+        }
+        
+        .drop-zone .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: #4ecca3;
+            color: #1a1a2e;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #6ee7c7;
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        #risultato {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        #risultato.visibile {
+            display: block;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: #1a1a2e;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        th {
+            background: #4ecca3;
+            color: #1a1a2e;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .riepilogo {
+            background: #0f3460;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .riepilogo h3 {
+            color: #4ecca3;
+            margin-bottom: 10px;
+        }
+        
+        .riepilogo p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        
+        .errore {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .caricamento {
+            text-align: center;
+            color: #4ecca3;
+            font-size: 1.2em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Estrattore PDF</h1>
+        <p class="subtitle">Carica un estratto conto o una fattura e ottieni i dati puliti in un secondo</p>
+        
+        <div id="areaUtente" style="text-align: center; margin-bottom: 20px;">
+            <span id="statoUtente" style="color: #4ecca3;">Caricamento...</span>
+        </div>
+        
+        <div class="drop-zone" id="dropZone">
+            <div class="icon">📁</div>
+            <p>Trascina qui il tuo PDF</p>
+            <p style="font-size: 0.9em; color: #888;">oppure clicca per selezionare</p>
+            <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+        </div>
+        
+        <button id="btnElabora" disabled>Elabora PDF</button>
+        
+        <div id="caricamento" class="caricamento" style="display: none;">
+            Elaborazione in corso...
+        </div>
+        
+        <div id="errore" class="errore" style="display: none;"></div>
+        
+        <div id="risultato">
+            <div class="riepilogo">
+                <h3>Riepilogo</h3>
+                <p>Movimenti trovati: <span id="numMovimenti"></span></p>
+                <p>Totale entrate: € <span id="totEntrate"></span></p>
+                <p>Totale uscite: € <span id="totUscite"></span></p>
+                <p>Saldo netto: € <span id="saldoNetto"></span></p>
+            </div>
+            
+            <div style="overflow-x: auto; margin-top: 20px;">
+                <table id="tabellaMovimenti">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrizione</th>
+                            <th>Entrate</th>
+                            <th>Uscite</th>
+                            <th>Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpoTabella"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const btnElabora = document.getElementById('btnElabora');
+        const risultato = document.getElementById('risultato');
+        const errore = document.getElementById('errore');
+        const caricamento = document.getElementById('caricamento');
+        
+        let fileSelezionato = null;
+        
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                fileSelezionato = e.dataTransfer.files[0];
+                btnElabora.disabled = false;
+                dropZone.querySelector('p:first-of-type').textContent = fileSelezionato.name;
+            }
+        });
+        
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                fileSelezionato = fileInput.files[0];
+                btnElabora.disabled = false;
+                dropZone.querySelector('p:first-of-type').textContent = fileSelezionato.name;
+            }
+        });
+        
+        btnElabora.addEventListener('click', async () => {
+            if (!fileSelezionato) return;
+            
+            btnElabora.disabled = true;
+            risultato.classList.remove('visibile');
+            errore.style.display = 'none';
+            caricamento.style.display = 'block';
+            
+            const formData = new FormData();
+            formData.append('file', fileSelezionato);
+            
+            try {
+                const response = await fetch('/elabora', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const dati = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(dati.errore || 'Errore durante l\'elaborazione');
+                }
+                
+                const risultatoDiv = document.getElementById('risultato');
+                risultatoDiv.innerHTML = '';
+                
+                if (dati.tipo_documento === 'estratto_conto') {
+                    risultatoDiv.innerHTML = `
+                        <div class="riepilogo">
+                            <h3>Estratto Conto Rilevato</h3>
+                            <p>Movimenti trovati: ${dati.numero_movimenti}</p>
+                            <p>Totale entrate: € ${dati.totale_entrate.toFixed(2)}</p>
+                            <p>Totale uscite: € ${dati.totale_uscite.toFixed(2)}</p>
+                            <p>Saldo netto: € ${dati.saldo_netto.toFixed(2)}</p>
+                        </div>
+                        <div style="overflow-x: auto; margin-top: 20px;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Descrizione</th>
+                                        <th>Entrate</th>
+                                        <th>Uscite</th>
+                                        <th>Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${dati.movimenti.map(mov => `
+                                        <tr>
+                                            <td>${mov.data}</td>
+                                            <td>${mov.descrizione}</td>
+                                            <td>${mov.entrata ? mov.entrata.toFixed(2) : ''}</td>
+                                            <td>${mov.uscita ? mov.uscita.toFixed(2) : ''}</td>
+                                            <td>${mov.saldo ? mov.saldo.toFixed(2) : ''}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else if (dati.tipo_documento === 'fattura') {
+                    const f = dati.dati_fattura || {};
+                    risultatoDiv.innerHTML = `
+                        <div class="riepilogo">
+                            <h3>Fattura Rilevata</h3>
+                            ${f.numero_fattura ? `<p>Numero fattura: ${f.numero_fattura}</p>` : ''}
+                            ${f.data_fattura ? `<p>Data: ${f.data_fattura}</p>` : ''}
+                            ${f.totale ? `<p>Totale: € ${f.totale.toFixed(2)}</p>` : ''}
+                            ${f.partita_iva ? `<p>Partita IVA: ${f.partita_iva}</p>` : ''}
+                            ${f.totale_iva ? `<p>IVA: € ${f.totale_iva.toFixed(2)}</p>` : ''}
+                        </div>
+                    `;
+                } else {
+                    risultatoDiv.innerHTML = `
+                        <div class="errore">
+                            Tipo documento non riconosciuto. Il file potrebbe non essere un estratto conto o una fattura.
+                        </div>
+                    `;
+                }
+                
+                risultatoDiv.style.display = 'block';
+                
+            } catch (err) {
+                errore.textContent = err.message;
+                errore.style.display = 'block';
+            } finally {
+                btnElabora.disabled = false;
+                caricamento.style.display = 'none';
+            }
+        });
+    </script>
+        <script>
+        async function controllaUtente() {
+            try {
+                const response = await fetch('/crediti');
+                const dati = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('statoUtente').innerHTML = 
+                        `Crediti disponibili: ${dati.crediti} | <a href="/logout" style="color: #ff6b6b;">Esci</a>`;
+                } else {
+                    document.getElementById('statoUtente').innerHTML = 
+                        `<a href="/login" style="color: #4ecca3; margin: 0 10px;">Accedi</a> 
+                         <a href="/registrati" style="color: #4ecca3; margin: 0 10px;">Registrati</a>`;
+                }
+            } catch (err) {
+                document.getElementById('statoUtente').innerHTML = 
+                    `<a href="/login" style="color: #4ecca3; margin: 0 10px;">Accedi</a> 
+                     <a href="/registrati" style="color: #4ecca3; margin: 0 10px;">Registrati</a>`;
+            }
+        }
+        
+        controllaUtente();
+    </script>
+</body>
+</html>

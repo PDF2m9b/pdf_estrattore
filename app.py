@@ -1,0 +1,120 @@
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import os
+from estrai import EstrattorePDF
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'chiave-segreta-temporanea'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///utenti.db'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+estrattore = EstrattorePDF()
+
+class Utente(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    crediti = db.Column(db.Integer, default=10)  # 10 elaborazioni gratis
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Utente.query.get(int(user_id))
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/registrati', methods=['GET', 'POST'])
+def registrati():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        if Utente.query.filter_by(email=email).first():
+            return jsonify({'errore': 'Email già registrata'}), 400
+        
+        utente = Utente(email=email)
+        utente.set_password(password)
+        db.session.add(utente)
+        db.session.commit()
+        
+        login_user(utente)
+        return jsonify({'successo': True, 'crediti': utente.crediti})
+    
+    return render_template('registrati.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        utente = Utente.query.filter_by(email=email).first()
+        
+        if utente and utente.check_password(password):
+            login_user(utente)
+            return jsonify({'successo': True, 'crediti': utente.crediti})
+        
+        return jsonify({'errore': 'Credenziali non valide'}), 401
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
+
+@app.route('/crediti')
+@login_required
+def crediti():
+    return jsonify({'crediti': current_user.crediti})
+
+@app.route('/elabora', methods=['POST'])
+@login_required
+def elabora():
+    if current_user.crediti <= 0:
+        return jsonify({'errore': 'Crediti esauriti. Acquista nuovi crediti.'}), 403
+    
+    if 'file' not in request.files:
+        return jsonify({'errore': 'Nessun file caricato'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'errore': 'Nessun file selezionato'}), 400
+    
+    percorso_temp = 'temp.pdf'
+    file.save(percorso_temp)
+    
+    risultato = estrattore.processa_pdf(percorso_temp)
+    
+    if os.path.exists(percorso_temp):
+        os.remove(percorso_temp)
+    
+    if not risultato:
+        return jsonify({'errore': 'Impossibile elaborare il PDF'}), 400
+    
+    current_user.crediti -= 1
+    db.session.commit()
+    
+    risultato['crediti_rimasti'] = current_user.crediti
+    
+    return jsonify(risultato)
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host='0.0.0.0', port=5000)
