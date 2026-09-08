@@ -334,7 +334,40 @@
                     `;
                 }
                 
-                risultatoDiv.style.display = 'block';
+                risultatoDiv.style.display = 'block';                risultatoDiv.style.display = 'block';
+                
+                // Aggiungi pulsante download
+                if (dati.tipo_documento === 'estratto_conto' && dati.movimenti && dati.movimenti.length > 0) {
+                    const btnDownload = document.createElement('button');
+                    btnDownload.textContent = '📥 Scarica CSV';
+                    btnDownload.style.marginTop = '20px';
+                    btnDownload.style.background = '#4ecca3';
+                    btnDownload.style.color = '#1a1a2e';
+                    btnDownload.style.border = 'none';
+                    btnDownload.style.padding = '15px 30px';
+                    btnDownload.style.fontSize = '1.1em';
+                    btnDownload.style.borderRadius = '10px';
+                    btnDownload.style.cursor = 'pointer';
+                    btnDownload.style.fontWeight = 'bold';
+                    
+                    btnDownload.onclick = async () => {
+                        const response = await fetch('/scarica-csv', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({movimenti: dati.movimenti})
+                        });
+                        
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'dati_estratti.csv';
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                    };
+                    
+                    risultatoDiv.appendChild(btnDownload);
+                }
                 
             } catch (err) {
                 errore.textContent = err.message;

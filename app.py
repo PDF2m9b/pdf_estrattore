@@ -114,6 +114,37 @@ def elabora():
     
     return jsonify(risultato)
 
+@app.route('/scarica-csv', methods=['POST'])
+@login_required
+def scarica_csv():
+    dati = request.get_json()
+    movimenti = dati.get('movimenti', [])
+    
+    if not movimenti:
+        return jsonify({'errore': 'Nessun dato da scaricare'}), 400
+    
+    import csv
+    import io
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Data', 'Descrizione', 'Entrate', 'Uscite', 'Saldo'])
+    
+    for mov in movimenti:
+        writer.writerow([
+            mov.get('data', ''),
+            mov.get('descrizione', ''),
+            mov.get('entrata', ''),
+            mov.get('uscita', ''),
+            mov.get('saldo', '')
+        ])
+    
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=dati_estratti.csv'}
+    )
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
