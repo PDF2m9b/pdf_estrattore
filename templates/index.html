@@ -336,6 +336,39 @@
                 
                 risultatoDiv.style.display = 'block';
                 
+                // Aggiungi pulsante download per fatture
+                if (dati.tipo_documento === 'fattura') {
+                    const btnDownloadFattura = document.createElement('button');
+                    btnDownloadFattura.textContent = '📥 Scarica Dati Fattura';
+                    btnDownloadFattura.style.marginTop = '20px';
+                    btnDownloadFattura.style.background = '#4ecca3';
+                    btnDownloadFattura.style.color = '#1a1a2e';
+                    btnDownloadFattura.style.border = 'none';
+                    btnDownloadFattura.style.padding = '15px 30px';
+                    btnDownloadFattura.style.fontSize = '1.1em';
+                    btnDownloadFattura.style.borderRadius = '10px';
+                    btnDownloadFattura.style.cursor = 'pointer';
+                    btnDownloadFattura.style.fontWeight = 'bold';
+                    
+                    btnDownloadFattura.onclick = () => {
+                        const f = dati.dati_fattura || {};
+                        const testo = Object.entries(f)
+                            .filter(([k, v]) => v)
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join('\n');
+                        
+                        const blob = new Blob([testo], {type: 'text/plain'});
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'dati_fattura.txt';
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                    };
+                    
+                    risultatoDiv.appendChild(btnDownloadFattura);
+                }
+                
                 // Aggiungi pulsante download
                 if (dati.tipo_documento === 'estratto_conto' && dati.movimenti && dati.movimenti.length > 0) {
                     const btnDownload = document.createElement('button');
