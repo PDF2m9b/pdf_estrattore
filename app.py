@@ -114,7 +114,56 @@ def elabora():
     
     return jsonify(risultato)
 
-@app.route('/scarica-csv', methods=['POST'])
+@app.route('/scarica-excel', methods=['POST'])
+@login_required
+def scarica_excel():
+    dati = request.get_json()
+    movimenti = dati.get('movimenti', [])
+    
+    if not movimenti:
+        return jsonify({'errore': 'Nessun dato da scaricare'}), 400
+    
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Movimenti"
+    
+    # Intestazioni
+    headers = ['Data', 'Descrizione', 'Entrate', 'Uscite', 'Saldo']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="4ecca3", end_color="4ecca3", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+    
+    # Dati
+    for row, mov in enumerate(movimenti, 2):
+        ws.cell(row=row, column=1, value=mov.get('data', ''))
+        ws.cell(row=row, column=2, value=mov.get('descrizione', ''))
+        ws.cell(row=row, column=3, value=mov.get('entrata') if mov.get('entrata') else None)
+        ws.cell(row=row, column=4, value=mov.get('uscita') if mov.get('uscita') else None)
+        ws.cell(row=row, column=5, value=mov.get('saldo') if mov.get('saldo') else None)
+    
+    # Larghezza colonne
+    ws.column_dimensions['A'].width = 15
+    ws.column_dimensions['B'].width = 50
+    ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['E'].width = 15
+    
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': 'attachment; filename=movimenti.xlsx'}
+    )
 @login_required
 def scarica_csv():
     dati = request.get_json()

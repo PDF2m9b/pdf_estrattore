@@ -372,7 +372,7 @@
                 // Aggiungi pulsante download
                 if (dati.tipo_documento === 'estratto_conto' && dati.movimenti && dati.movimenti.length > 0) {
                     const btnDownload = document.createElement('button');
-                    btnDownload.textContent = '📥 Scarica CSV';
+                    btnDownload.textContent = '📥 Scarica Excel';
                     btnDownload.style.marginTop = '20px';
                     btnDownload.style.background = '#4ecca3';
                     btnDownload.style.color = '#1a1a2e';
@@ -384,7 +384,7 @@
                     btnDownload.style.fontWeight = 'bold';
                     
                     btnDownload.onclick = async () => {
-                        const response = await fetch('/scarica-csv', {
+                        const response = await fetch('/scarica-excel', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({movimenti: dati.movimenti})
@@ -394,7 +394,7 @@
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'dati_estratti.csv';
+                        a.download = 'movimenti.xlsx';
                         a.click();
                         window.URL.revokeObjectURL(url);
                     };
