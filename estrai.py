@@ -108,6 +108,20 @@ class EstrattorePDF:
         
         try:
             with pdfplumber.open(percorso_file) as pdf:
+                                # Rileva il tipo di documento
+                tipo_documento = 'sconosciuto'
+                testo_completo = ''
+                for pagina in pdf.pages[:2]:
+                    testo_pagina = pagina.extract_text()
+                    if testo_pagina:
+                        testo_completo += testo_pagina + '\n'
+                
+                testo_upper = testo_completo.upper()
+                
+                if 'ESTRATTO CONTO' in testo_upper or 'SALDO PROGRESSIVO' in testo_upper:
+                    tipo_documento = 'estratto_conto'
+                elif 'FATTURA' in testo_upper or 'NOTA DI CREDITO' in testo_upper:
+                    tipo_documento = 'fattura'
                 movimenti_totali = []
                 
                 # Estrai l'anno dalla prima pagina
