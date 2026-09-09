@@ -82,16 +82,28 @@ class EstrattorePDF:
                 data_contabile = normalizza_data(riga[0], self.anno_predefinito)
                 descrizione = riga[3].replace('\n', ' ').strip() if riga[3] else ''
                 
+                # Verifica se la colonna importo ha segno negativo
+                importo_grezzo = riga[4] if riga[4] else riga[5]
+                
                 addebito = normalizza_importo(riga[4])
                 accredito = normalizza_importo(riga[5])
                 saldo = normalizza_importo(riga[6])
                 
                 if descrizione and (addebito or accredito):
+                    # Se l'importo originale era negativo, è un'uscita
+                    # Se era positivo, è un'entrata
+                    if importo_grezzo and '-' in str(importo_grezzo):
+                        entrata = None
+                        uscita = abs(float(addebito or accredito))
+                    else:
+                        entrata = float(addebito or accredito)
+                        uscita = None
+                    
                     movimenti.append({
                         'data': data_contabile,
                         'descrizione': descrizione,
-                        'entrata': float(accredito) if accredito else None,
-                        'uscita': float(addebito) if addebito else None,
+                        'entrata': entrata,
+                        'uscita': uscita,
                         'saldo': float(saldo) if saldo else None
                     })
         
