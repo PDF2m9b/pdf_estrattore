@@ -7,7 +7,6 @@ import pdfplumber
 
 
 def normalizza_importo(valore):
-    """Converte una stringa importo in Decimal."""
     if not valore:
         return None
     
@@ -29,7 +28,6 @@ def normalizza_importo(valore):
 
 
 def normalizza_data(data_breve, anno="2026"):
-    """Converte data formato 02/07 in 02/07/2026."""
     if not data_breve:
         return None
     
@@ -48,13 +46,35 @@ class EstrattorePDF:
     def __init__(self):
         self.anno_predefinito = "2026"
     
-    def leggi_pdf(self, percorso_file):
-        if not os.path.exists(percorso_file):
-            return None
-        return percorso_file
+    def estrai_dati_fattura(self, testo):
+        dati = {
+            'numero_fattura': None,
+            'data_fattura': None,
+            'totale': None,
+            'partita_iva': None
+        }
+        
+        match = re.search(r'(?:Fattura|FATTURA|FT|Numero|N\.?)\s*(?:N\.?|Numero)?\s*[:#]?\s*(\d{1,6})', testo)
+        if match:
+            dati['numero_fattura'] = match.group(1)
+        
+        match = re.search(r'(?:Data|DATA)\s*[:]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', testo)
+        if match:
+            dati['data_fattura'] = normalizza_data(match.group(1), self.anno_predefinito)
+        
+        match = re.search(r'(?:TOTALE|Totale|TOTALE DOCUMENTO|TOTALE FATTURA)\s*[:]?\s*(?:€)?\s*([\d\.,]+)', testo)
+        if match:
+            valore = normalizza_importo(match.group(1))
+            if valore:
+                dati['totale'] = float(valore)
+        
+        match = re.search(r'(?:P\.?\s*IVA|Partita IVA|P\.IVA)\s*[:]?\s*(\d{11})', testo)
+        if match:
+            dati['partita_iva'] = match.group(1)
+        
+        return dati
     
     def estrai_movimenti_da_tabella(self, tabella):
-        """Converte la tabella di pdfplumber in movimenti strutturati."""
         movimenti = []
         
         for riga in tabella[1:]:
@@ -78,7 +98,6 @@ class EstrattorePDF:
         return movimenti
     
     def verifica_quadratura(self, movimenti):
-        """Verifica se i movimenti quadrano con il saldo progressivo."""
         errori = []
         
         for i in range(1, len(movimenti)):
@@ -102,13 +121,23 @@ class EstrattorePDF:
         return errori
     
     def processa_pdf(self, percorso_file):
-        """Processa un PDF estratto conto con pdfplumber."""
         if not os.path.exists(percorso_file):
             return None
         
         try:
             with pdfplumber.open(percorso_file) as pdf:
-                                # Rileva il tipo di documento
+                movimenti_totali = []
+                
+                anno_estratto = None
+                prima_pagina = pdf.pages[0]
+                testo_prima_pagina = prima_pagina.extract_text()
+                
+                if testo_prima_pagina:
+                    match = re.search(r'Periodo:\s*\d{2}/\d{2}/(\d{4})', testo_prima_pagina)
+                    if match:
+                        anno_estratto = match.group(1)
+                        self.anno_predefinito = anno_estratto
+                
                 tipo_documento = 'sconosciuto'
                 testo_completo = ''
                 for pagina in pdf.pages[:2]:
@@ -122,55 +151,50 @@ class EstrattorePDF:
                     tipo_documento = 'estratto_conto'
                 elif 'FATTURA' in testo_upper or 'NOTA DI CREDITO' in testo_upper:
                     tipo_documento = 'fattura'
-                movimenti_totali = []
                 
-                # Estrai l'anno dalla prima pagina
-                anno_estratto = None
-                prima_pagina = pdf.pages[0]
-                testo_prima_pagina = prima_pagina.extract_text()
-                
-                if testo_prima_pagina:
-                    # Cerca pattern tipo "Periodo: 01/07/2026 - 30/09/2026"
-                    match = re.search(r'Periodo:\s*\d{2}/\d{2}/(\d{4})', testo_prima_pagina)
-                    if match:
-                        anno_estratto = match.group(1)
-                        self.anno_predefinito = anno_estratto
-                
-                # Leggi TUTTE le pagine
-                for pagina in pdf.pages:
-                    tabelle = pagina.extract_tables()
+                if tipo_documento == 'estratto_conto':
+                    for pagina in pdf.pages:
+                        tabelle = pagina.extract_tables()
+                        
+                        for tabella in tabelle:
+                            if tabella and len(tabella) > 1 and len(tabella[0]) >= 7:
+                                prima_cella = str(tabella[0][0]).lower() if tabella[0][0] else ''
+                                if 'data' in prima_cella:
+                                    movimenti = self.estrai_movimenti_da_tabella(tabella)
+                                    movimenti_totali.extend(movimenti)
                     
-                    for tabella in tabelle:
-                        # Controlla se la tabella ha le colonne dei movimenti
-                        if tabella and len(tabella) > 1 and len(tabella[0]) >= 7:
-                            # Verifica che sia la tabella dei movimenti (ha "Data" nella prima colonna)
-                            prima_cella = str(tabella[0][0]).lower() if tabella[0][0] else ''
-                            if 'data' in prima_cella:
-                                movimenti = self.estrai_movimenti_da_tabella(tabella)
-                                movimenti_totali.extend(movimenti)
+                    if not movimenti_totali:
+                        return None
+                    
+                    totale_entrate = sum(m['entrata'] for m in movimenti_totali if m['entrata'])
+                    totale_uscite = sum(m['uscita'] for m in movimenti_totali if m['uscita'])
+                    errori = self.verifica_quadratura(movimenti_totali)
+                    
+                    return {
+                        'tipo_documento': 'estratto_conto',
+                        'movimenti': movimenti_totali,
+                        'totale_entrate': round(totale_entrate, 2),
+                        'totale_uscite': round(totale_uscite, 2),
+                        'saldo_netto': round(totale_entrate - totale_uscite, 2),
+                        'numero_movimenti': len(movimenti_totali),
+                        'errori_quadratura': errori
+                    }
                 
-                if not movimenti_totali:
+                elif tipo_documento == 'fattura':
+                    dati_fattura = self.estrai_dati_fattura(testo_completo)
+                    
+                    return {
+                        'tipo_documento': 'fattura',
+                        'dati_fattura': dati_fattura,
+                        'movimenti': [],
+                        'totale_entrate': 0,
+                        'totale_uscite': 0,
+                        'saldo_netto': 0,
+                        'numero_movimenti': 0
+                    }
+                
+                else:
                     return None
-                
-                movimenti = movimenti_totali
-                
-                if not movimenti:
-                    return None
-                
-                totale_entrate = sum(m['entrata'] for m in movimenti if m['entrata'])
-                totale_uscite = sum(m['uscita'] for m in movimenti if m['uscita'])
-                
-                errori = self.verifica_quadratura(movimenti)
-                
-                return {
-                    'tipo_documento': 'estratto_conto',
-                    'movimenti': movimenti,
-                    'totale_entrate': round(totale_entrate, 2),
-                    'totale_uscite': round(totale_uscite, 2),
-                    'saldo_netto': round(totale_entrate - totale_uscite, 2),
-                    'numero_movimenti': len(movimenti),
-                    'errori_quadratura': errori
-                }
         except Exception as e:
             print(f"Errore: {e}")
             return None
