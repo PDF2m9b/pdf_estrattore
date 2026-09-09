@@ -6,3 +6,4 @@ openpyxl
 requests
 PyMuPDF
 gunicorn
+pdfplumber
