@@ -110,6 +110,18 @@ class EstrattorePDF:
             with pdfplumber.open(percorso_file) as pdf:
                 movimenti_totali = []
                 
+                # Estrai l'anno dalla prima pagina
+                anno_estratto = None
+                prima_pagina = pdf.pages[0]
+                testo_prima_pagina = prima_pagina.extract_text()
+                
+                if testo_prima_pagina:
+                    # Cerca pattern tipo "Periodo: 01/07/2026 - 30/09/2026"
+                    match = re.search(r'Periodo:\s*\d{2}/\d{2}/(\d{4})', testo_prima_pagina)
+                    if match:
+                        anno_estratto = match.group(1)
+                        self.anno_predefinito = anno_estratto
+                
                 # Leggi TUTTE le pagine
                 for pagina in pdf.pages:
                     tabelle = pagina.extract_tables()
