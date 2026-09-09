@@ -108,13 +108,25 @@ class EstrattorePDF:
         
         try:
             with pdfplumber.open(percorso_file) as pdf:
-                prima_pagina = pdf.pages[0]
-                tabelle = prima_pagina.extract_tables()
+                movimenti_totali = []
                 
-                if not tabelle:
+                # Leggi TUTTE le pagine
+                for pagina in pdf.pages:
+                    tabelle = pagina.extract_tables()
+                    
+                    for tabella in tabelle:
+                        # Controlla se la tabella ha le colonne dei movimenti
+                        if tabella and len(tabella) > 1 and len(tabella[0]) >= 7:
+                            # Verifica che sia la tabella dei movimenti (ha "Data" nella prima colonna)
+                            prima_cella = str(tabella[0][0]).lower() if tabella[0][0] else ''
+                            if 'data' in prima_cella:
+                                movimenti = self.estrai_movimenti_da_tabella(tabella)
+                                movimenti_totali.extend(movimenti)
+                
+                if not movimenti_totali:
                     return None
                 
-                movimenti = self.estrai_movimenti_da_tabella(tabelle[0])
+                movimenti = movimenti_totali
                 
                 if not movimenti:
                     return None
