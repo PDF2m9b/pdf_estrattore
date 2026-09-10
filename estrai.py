@@ -78,20 +78,23 @@ class EstrattorePDF:
         movimenti = []
         
         for riga in tabella[1:]:
-            if len(riga) >= 7:
+            if len(riga) >= 5:
                 data_contabile = normalizza_data(riga[0], self.anno_predefinito)
-                descrizione = riga[3].replace('\n', ' ').strip() if riga[3] else ''
                 
-                # Verifica se la colonna importo ha segno negativo
-                importo_grezzo = riga[4] if riga[4] else riga[5]
-                
-                addebito = normalizza_importo(riga[4])
-                accredito = normalizza_importo(riga[5])
-                saldo = normalizza_importo(riga[6])
+                if len(riga) >= 7:
+                    descrizione = riga[3].replace('\n', ' ').strip() if riga[3] else ''
+                    importo_grezzo = riga[4] if riga[4] else riga[5]
+                    addebito = normalizza_importo(riga[4])
+                    accredito = normalizza_importo(riga[5])
+                    saldo = normalizza_importo(riga[6])
+                else:
+                    descrizione = riga[1].replace('\n', ' ').strip() if riga[1] else ''
+                    importo_grezzo = riga[2] if riga[2] else riga[3]
+                    addebito = normalizza_importo(riga[2])
+                    accredito = normalizza_importo(riga[3])
+                    saldo = normalizza_importo(riga[4])
                 
                 if descrizione and (addebito or accredito):
-                    # Se l'importo originale era negativo, è un'uscita
-                    # Se era positivo, è un'entrata
                     if importo_grezzo and '-' in str(importo_grezzo):
                         entrata = None
                         uscita = abs(float(addebito or accredito))
@@ -140,15 +143,13 @@ class EstrattorePDF:
             with pdfplumber.open(percorso_file) as pdf:
                 movimenti_totali = []
                 
-                anno_estratto = None
                 prima_pagina = pdf.pages[0]
                 testo_prima_pagina = prima_pagina.extract_text()
                 
                 if testo_prima_pagina:
                     match = re.search(r'Periodo:\s*\d{2}/\d{2}/(\d{4})', testo_prima_pagina)
                     if match:
-                        anno_estratto = match.group(1)
-                        self.anno_predefinito = anno_estratto
+                        self.anno_predefinito = match.group(1)
                 
                 tipo_documento = 'sconosciuto'
                 testo_completo = ''
@@ -169,11 +170,13 @@ class EstrattorePDF:
                         tabelle = pagina.extract_tables()
                         
                         for tabella in tabelle:
-                            if tabella and len(tabella) > 1 and len(tabella[0]) >= 7:
-                                prima_cella = str(tabella[0][0]).lower() if tabella[0][0] else ''
-                                if 'data' in prima_cella:
-                                    movimenti = self.estrai_movimenti_da_tabella(tabella)
-                                    movimenti_totali.extend(movimenti)
+                            if tabella and len(tabella) > 1:
+                                intestazione = str(tabella[0]).lower()
+                                # Prende solo tabelle con 'data' e 'saldo', esclude quelle con 'valuta'
+                                if 'data' in intestazione and 'saldo' in intestazione:
+                                    if 'valuta' not in intestazione:
+                                        movimenti = self.estrai_movimenti_da_tabella(tabella)
+                                        movimenti_totali.extend(movimenti)
                     
                     if not movimenti_totali:
                         return None
