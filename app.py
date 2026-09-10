@@ -131,7 +131,6 @@ def scarica_excel():
     ws = wb.active
     ws.title = "Movimenti"
     
-    # Intestazioni
     headers = ['Data', 'Descrizione', 'Entrate', 'Uscite', 'Saldo']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -139,7 +138,6 @@ def scarica_excel():
         cell.fill = PatternFill(start_color="4ecca3", end_color="4ecca3", fill_type="solid")
         cell.alignment = Alignment(horizontal="center")
     
-    # Dati
     for row, mov in enumerate(movimenti, 2):
         ws.cell(row=row, column=1, value=mov.get('data', ''))
         ws.cell(row=row, column=2, value=mov.get('descrizione', ''))
@@ -147,7 +145,6 @@ def scarica_excel():
         ws.cell(row=row, column=4, value=mov.get('uscita') if mov.get('uscita') else None)
         ws.cell(row=row, column=5, value=mov.get('saldo') if mov.get('saldo') else None)
     
-    # Larghezza colonne
     ws.column_dimensions['A'].width = 15
     ws.column_dimensions['B'].width = 50
     ws.column_dimensions['C'].width = 15
@@ -164,6 +161,9 @@ def scarica_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         headers={'Content-Disposition': 'attachment; filename=movimenti.xlsx'}
     )
+
+
+@app.route('/scarica-csv', methods=['POST'])
 @login_required
 def scarica_csv():
     dati = request.get_json()
@@ -194,6 +194,38 @@ def scarica_csv():
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=dati_estratti.csv'}
     )
+
+
+@app.route('/api/v1/converti', methods=['POST'])
+def api_converti():
+    if 'file' not in request.files:
+        return jsonify({"stato": "errore", "messaggio": "Nessun file inviato"}), 400
+    
+    file_caricato = request.files['file']
+    if file_caricato.filename == '':
+        return jsonify({"stato": "errore", "messaggio": "Nome file vuoto"}), 400
+    
+    nome_file = file_caricato.filename.lower()
+    if not (nome_file.endswith('.csv') or nome_file.endswith('.xlsx') or nome_file.endswith('.xls')):
+        return jsonify({"stato": "errore", "messaggio": "Formato non supportato. Usa CSV o Excel"}), 400
+    
+    percorso_temp = os.path.join('instance', 'temp_converti_' + file_caricato.filename)
+    file_caricato.save(percorso_temp)
+    
+    try:
+        from trasforma_dati import normalizza_e_converti_foglio
+        risultato = normalizza_e_converti_foglio(percorso_temp)
+        
+        if os.path.exists(percorso_temp):
+            os.remove(percorso_temp)
+        
+        return jsonify(risultato), 200
+    except Exception as e:
+        if os.path.exists(percorso_temp):
+            os.remove(percorso_temp)
+        return jsonify({"stato": "errore", "messaggio": str(e)}), 500
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
