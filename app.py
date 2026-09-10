@@ -198,6 +198,14 @@ def scarica_csv():
 
 @app.route('/api/v1/converti', methods=['POST'])
 def api_converti():
+    # RapidAPI invia automaticamente questo header con una chiave proxy segreta
+    chiave_ricevuta = request.headers.get('X-RapidAPI-Proxy-Secret')
+    chiave_attesa = os.environ.get('RAPIDAPI_PROXY_SECRET', 'test-locale')
+    
+    # Se la variabile d'ambiente non è impostata, permetti test locale
+    if chiave_attesa != 'test-locale' and chiave_ricevuta != chiave_attesa:
+        return jsonify({"stato": "errore", "messaggio": "Autenticazione fallita"}), 401
+    
     if 'file' not in request.files:
         return jsonify({"stato": "errore", "messaggio": "Nessun file inviato"}), 400
     
@@ -207,7 +215,7 @@ def api_converti():
     
     nome_file = file_caricato.filename.lower()
     if not (nome_file.endswith('.csv') or nome_file.endswith('.xlsx') or nome_file.endswith('.xls')):
-        return jsonify({"stato": "errore", "messaggio": "Formato non supportato. Usa CSV o Excel"}), 400
+        return jsonify({"stato": "errore", "messaggio": "Formato non supportato"}), 400
     
     percorso_temp = os.path.join('instance', 'temp_converti_' + file_caricato.filename)
     file_caricato.save(percorso_temp)
