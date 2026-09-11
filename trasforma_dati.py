@@ -34,6 +34,23 @@ def normalizza_e_converti_foglio(percorso_file):
         df = df.dropna(how='all')
         df = df.dropna(axis=1, how='all')
         
+        # FIX FLOAT: rimuove il .0 dai numeri che sono interi (telefoni, codici, ID)
+        for colonna in df.columns:
+            try:
+                if pd.api.types.is_float_dtype(df[colonna]):
+                    valori_non_nulli = df[colonna].dropna()
+                    if len(valori_non_nulli) > 0:
+                        tutti_interi = valori_non_nulli.apply(
+                            lambda x: float(x).is_integer()
+                        ).all()
+                        if tutti_interi:
+                            df[colonna] = df[colonna].apply(
+                                lambda x: str(int(x)) if pd.notnull(x) else ''
+                            )
+            except Exception as e:
+                print(f"Errore fix float sulla colonna {colonna}: {e}")
+                continue
+        
         # Sostituisci i NaN con stringa vuota
         df = df.fillna('')
         
