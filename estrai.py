@@ -46,6 +46,12 @@ class EstrattorePDF:
     def __init__(self):
         self.anno_predefinito = "2026"
     
+    def normalizza_numero(self, valore):
+        return normalizza_importo(valore)
+    
+    def normalizza_data(self, data_grezza, anno="2026"):
+        return normalizza_data(data_grezza, anno)
+    
     def estrai_dati_fattura(self, testo):
         dati = {
             'numero_fattura': None,
@@ -77,38 +83,93 @@ class EstrattorePDF:
     def estrai_movimenti_da_tabella(self, tabella):
         movimenti = []
         
+        if not tabella or len(tabella) < 2:
+            return movimenti
+        
+        # FASE 1: Rileva gli indici delle colonne dall'intestazione
+        intestazione = [str(c).strip().lower() if c else '' for c in tabella[0]]
+        
+        idx_data = -1
+        idx_desc = -1
+        idx_importo = -1
+        idx_add = -1
+        idx_acc = -1
+        idx_saldo = -1
+        
+        for i, col in enumerate(intestazione):
+            if 'data' in col and idx_data == -1:
+                idx_data = i
+            elif 'descrizione' in col or 'causale' in col or 'operazione' in col:
+                idx_desc = i
+            elif 'importo' in col:
+                idx_importo = i
+            elif 'addebit' in col or 'dare' in col or 'uscita' in col:
+                idx_add = i
+            elif 'accredit' in col or 'avere' in col or 'entrata' in col:
+                idx_acc = i
+            elif 'saldo' in col:
+                idx_saldo = i
+        
+        if idx_data == -1 or idx_desc == -1:
+            return movimenti
+        
+        # FASE 2: Estrai i movimenti
         for riga in tabella[1:]:
-            if len(riga) >= 5:
-                data_contabile = normalizza_data(riga[0], self.anno_predefinito)
+            if len(riga) <= max(idx_data, idx_desc):
+                continue
+            
+            data_grezza = str(riga[idx_data]).strip() if riga[idx_data] else ''
+            if not data_grezza or not re.search(r'\d', data_grezza):
+                continue
+            
+            data_pulita = normalizza_data(data_grezza, self.anno_predefinito)
+            descrizione = str(riga[idx_desc]).replace('\n', ' ').strip() if riga[idx_desc] else ''
+            
+            if 'SALDO INIZIALE' in descrizione.upper() or 'SALDO FINALE' in descrizione.upper():
+                continue
+            
+            entrata = None
+            uscita = None
+            saldo = None
+            
+            # CASO A: colonna importo unica (+/-)
+            if idx_importo != -1:
+                importo_grezzo = str(riga[idx_importo]).strip() if riga[idx_importo] else ''
                 
-                if len(riga) >= 7:
-                    descrizione = riga[3].replace('\n', ' ').strip() if riga[3] else ''
-                    importo_grezzo = riga[4] if riga[4] else riga[5]
-                    addebito = normalizza_importo(riga[4])
-                    accredito = normalizza_importo(riga[5])
-                    saldo = normalizza_importo(riga[6])
-                else:
-                    descrizione = riga[1].replace('\n', ' ').strip() if riga[1] else ''
-                    importo_grezzo = riga[2] if riga[2] else riga[3]
-                    addebito = normalizza_importo(riga[2])
-                    accredito = normalizza_importo(riga[3])
-                    saldo = normalizza_importo(riga[4])
-                
-                if descrizione and (addebito or accredito):
-                    if importo_grezzo and '-' in str(importo_grezzo):
-                        entrata = None
-                        uscita = abs(float(addebito or accredito))
-                    else:
-                        entrata = float(addebito or accredito)
-                        uscita = None
+                if importo_grezzo and re.search(r'\d', importo_grezzo):
+                    importo_num = normalizza_importo(importo_grezzo)
                     
-                    movimenti.append({
-                        'data': data_contabile,
-                        'descrizione': descrizione,
-                        'entrata': entrata,
-                        'uscita': uscita,
-                        'saldo': float(saldo) if saldo else None
-                    })
+                    if importo_num is not None:
+                        if '-' in importo_grezzo:
+                            uscita = abs(float(importo_num))
+                        else:
+                            entrata = float(importo_num)
+            
+            # CASO B: colonne separate addebito/accredito
+            elif idx_add != -1 or idx_acc != -1:
+                if idx_add != -1 and riga[idx_add]:
+                    val = normalizza_importo(str(riga[idx_add]))
+                    if val is not None and val > 0:
+                        uscita = float(val)
+                
+                if idx_acc != -1 and riga[idx_acc]:
+                    val = normalizza_importo(str(riga[idx_acc]))
+                    if val is not None and val > 0:
+                        entrata = float(val)
+            
+            if idx_saldo != -1 and riga[idx_saldo]:
+                val = normalizza_importo(str(riga[idx_saldo]))
+                if val is not None:
+                    saldo = float(val)
+            
+            if descrizione and (entrata is not None or uscita is not None):
+                movimenti.append({
+                    'data': data_pulita,
+                    'descrizione': descrizione,
+                    'entrata': entrata,
+                    'uscita': uscita,
+                    'saldo': saldo
+                })
         
         return movimenti
     
@@ -172,11 +233,9 @@ class EstrattorePDF:
                         for tabella in tabelle:
                             if tabella and len(tabella) > 1:
                                 intestazione = str(tabella[0]).lower()
-                                # Prende solo tabelle con 'data' e 'saldo', esclude quelle con 'valuta'
-                                if 'data' in intestazione and 'saldo' in intestazione:
-                                    if 'valuta' not in intestazione:
-                                        movimenti = self.estrai_movimenti_da_tabella(tabella)
-                                        movimenti_totali.extend(movimenti)
+                                if 'data' in intestazione and ('importo' in intestazione or 'addebit' in intestazione or 'accredit' in intestazione or 'saldo' in intestazione):
+                                    movimenti = self.estrai_movimenti_da_tabella(tabella)
+                                    movimenti_totali.extend(movimenti)
                     
                     if not movimenti_totali:
                         return None

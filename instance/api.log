@@ -2,3 +2,8 @@
 [2026-09-11 15:49:35] [INFO] SUCCESSO | IP: 127.0.0.1 | File: test_brutto.csv | Righe: 4
 [2026-09-11 16:03:40] [INFO] RICHIESTA MULTIPLA | IP: 127.0.0.1 | Num files: 2
 [2026-09-11 16:03:41] [INFO] RISULTATO MULTIPLO | IP: 127.0.0.1 | Successi: 2 | Errori: 0
+[2026-09-11 16:06:15] [INFO] RICHIESTA | IP: 127.0.0.1 | File: test_brutto.csv | Dim: 182 byte
+[2026-09-11 16:06:15] [INFO] SUCCESSO | IP: 127.0.0.1 | File: test_brutto.csv | Righe: 4
+[2026-09-11 16:06:20] [WARNING] FILE VUOTO | IP: 127.0.0.1 | File: vuoto.csv
+[2026-09-11 16:06:25] [WARNING] FORMATO NON SUPPORTATO | IP: 127.0.0.1 | File: test.txt
+[2026-09-11 16:06:30] [WARNING] NO FILE | IP: 127.0.0.1
