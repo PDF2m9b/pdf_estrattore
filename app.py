@@ -222,6 +222,41 @@ def scarica_csv():
     )
 
 
+@app.route('/api/v1/info', methods=['GET'])
+def api_info():
+    return jsonify({
+        "nome": "DataCleaner API",
+        "versione": "1.0",
+        "descrizione": "Pulisce e converte file CSV ed Excel in JSON strutturato",
+        "endpoints": [
+            {
+                "path": "/api/v1/info",
+                "method": "GET",
+                "descrizione": "Informazioni sull'API"
+            },
+            {
+                "path": "/api/v1/converti",
+                "method": "POST",
+                "descrizione": "Converte un singolo file CSV/Excel in JSON",
+                "parametri": {
+                    "file": "File CSV o Excel da elaborare (form-data)"
+                }
+            },
+            {
+                "path": "/api/v1/converti-multipli",
+                "method": "POST",
+                "descrizione": "Converte più file in una sola richiesta (max 10 file)",
+                "parametri": {
+                    "files": "Più file CSV o Excel (form-data, campo ripetuto)"
+                }
+            }
+        ],
+        "limiti": {
+            "dimensione_massima_file": "16 MB",
+            "rate_limit": "5 richieste/ora per IP",
+            "formati_supportati": ["CSV", "XLSX", "XLS"]
+        }
+    }), 200
 # Rate limiting semplice in memoria
 richieste_per_ip = {}
 LIMITE_ORARIO = 5
@@ -349,6 +384,114 @@ def api_converti():
             "stato": "errore", 
             "messaggio": f"Errore durante l'elaborazione: {str(e)}"
         }), 500
+@app.route('/api/v1/converti-multipli', methods=['POST'])
+def api_converti_multipli():
+    # RATE LIMITING
+    ip_cliente = request.remote_addr
+    if not check_rate_limit(ip_cliente):
+        api_logger.warning(f"RATE LIMIT MULTIPLI | IP: {ip_cliente}")
+        return jsonify({
+            "stato": "errore", 
+            "messaggio": "Rate limit superato. Riprova tra un'ora."
+        }), 429
+    
+    # VALIDAZIONE: files presenti
+    files = request.files.getlist('files')
+    if not files or len(files) == 0:
+        api_logger.warning(f"NO FILES MULTIPLI | IP: {ip_cliente}")
+        return jsonify({"stato": "errore", "messaggio": "Nessun file inviato"}), 400
+    
+    # VALIDAZIONE: massimo 10 file
+    if len(files) > 10:
+        api_logger.warning(f"TROPPI FILES | IP: {ip_cliente} | Num: {len(files)}")
+        return jsonify({
+            "stato": "errore", 
+            "messaggio": "Massimo 10 file per richiesta"
+        }), 400
+    
+    api_logger.info(f"RICHIESTA MULTIPLA | IP: {ip_cliente} | Num files: {len(files)}")
+    
+    risultati = []
+    errori = 0
+    
+    for file_caricato in files:
+        risultato_file = {
+            "nome_file": file_caricato.filename,
+            "stato": "sconosciuto"
+        }
+        
+        if not file_caricato.filename:
+            risultato_file["stato"] = "errore"
+            risultato_file["messaggio"] = "Nome file vuoto"
+            errori += 1
+            risultati.append(risultato_file)
+            continue
+        
+        nome_file_originale = file_caricato.filename
+        nome_file = nome_file_originale.lower()
+        
+        if '/' in nome_file_originale or '\\' in nome_file_originale or '..' in nome_file_originale:
+            risultato_file["stato"] = "errore"
+            risultato_file["messaggio"] = "Nome file non valido"
+            errori += 1
+            risultati.append(risultato_file)
+            continue
+        
+        if not (nome_file.endswith('.csv') or nome_file.endswith('.xlsx') or nome_file.endswith('.xls')):
+            risultato_file["stato"] = "errore"
+            risultato_file["messaggio"] = "Formato non supportato"
+            errori += 1
+            risultati.append(risultato_file)
+            continue
+        
+        import time
+        timestamp = str(int(time.time() * 1000)) + "_" + str(len(risultati))
+        
+        if nome_file.endswith('.csv'):
+            percorso_temp = os.path.join('instance', 'temp_multi_' + timestamp + '.csv')
+        elif nome_file.endswith('.xlsx'):
+            percorso_temp = os.path.join('instance', 'temp_multi_' + timestamp + '.xlsx')
+        else:
+            percorso_temp = os.path.join('instance', 'temp_multi_' + timestamp + '.xls')
+        
+        try:
+            file_caricato.save(percorso_temp)
+            
+            from trasforma_dati import normalizza_e_converti_foglio
+            risultato = normalizza_e_converti_foglio(percorso_temp)
+            
+            if os.path.exists(percorso_temp):
+                os.remove(percorso_temp)
+            
+            if risultato.get('stato') == 'errore':
+                risultato_file["stato"] = "errore"
+                risultato_file["messaggio"] = risultato.get('messaggio', 'Errore sconosciuto')
+                errori += 1
+            else:
+                risultato_file["stato"] = "successo"
+                risultato_file["dati"] = risultato.get('dati_strutturati', [])
+                risultato_file["info"] = risultato.get('info_file', {})
+        
+        except Exception as e:
+            if os.path.exists(percorso_temp):
+                os.remove(percorso_temp)
+            risultato_file["stato"] = "errore"
+            risultato_file["messaggio"] = str(e)
+            errori += 1
+        
+        risultati.append(risultato_file)
+    
+    api_logger.info(f"RISULTATO MULTIPLO | IP: {ip_cliente} | Successi: {len(files) - errori} | Errori: {errori}")
+    
+    return jsonify({
+        "stato": "successo" if errori == 0 else "parziale",
+        "numero_files": len(files),
+        "successi": len(files) - errori,
+        "errori": errori,
+        "risultati": risultati
+    }), 200
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
