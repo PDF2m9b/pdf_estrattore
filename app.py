@@ -196,15 +196,46 @@ def scarica_csv():
     )
 
 
+# Rate limiting semplice in memoria
+richieste_per_ip = {}
+LIMITE_ORARIO = 5
+FINESTRA_SECONDI = 3600
+
+def check_rate_limit(ip):
+    import time
+    ora_attuale = time.time()
+    
+    if ip not in richieste_per_ip:
+        richieste_per_ip[ip] = []
+    
+    # Pulisci richieste vecchie
+    richieste_per_ip[ip] = [
+        t for t in richieste_per_ip[ip] 
+        if ora_attuale - t < FINESTRA_SECONDI
+    ]
+    
+    if len(richieste_per_ip[ip]) >= LIMITE_ORARIO:
+        return False
+    
+    richieste_per_ip[ip].append(ora_attuale)
+    return True
+
+
 @app.route('/api/v1/converti', methods=['POST'])
 def api_converti():
-    # RapidAPI invia automaticamente questo header con una chiave proxy segreta
-    chiave_ricevuta = request.headers.get('X-RapidAPI-Proxy-Secret')
-    chiave_attesa = os.environ.get('RAPIDAPI_PROXY_SECRET', 'test-locale')
+    # RATE LIMITING
+    ip_cliente = request.remote_addr
+    if not check_rate_limit(ip_cliente):
+        return jsonify({
+            "stato": "errore", 
+            "messaggio": "Rate limit superato. Riprova tra un'ora."
+        }), 429
     
-    # Se la variabile d'ambiente non è impostata, permetti test locale
-    if chiave_attesa != 'test-locale' and chiave_ricevuta != chiave_attesa:
-        return jsonify({"stato": "errore", "messaggio": "Autenticazione fallita"}), 401
+    # Verifica che la richiesta arrivi da RapidAPI (opzionale, commentata per ora)
+    # chiave_ricevuta = request.headers.get('X-RapidAPI-Proxy-Secret')
+    # chiave_attesa = os.environ.get('RAPIDAPI_PROXY_SECRET', 'test-locale')
+    # if chiave_attesa != 'test-locale' and chiave_ricevuta != chiave_attesa:
+    #     return jsonify({"stato": "errore", "messaggio": "Autenticazione fallita"}), 401
     
     if 'file' not in request.files:
         return jsonify({"stato": "errore", "messaggio": "Nessun file inviato"}), 400
@@ -232,8 +263,6 @@ def api_converti():
         if os.path.exists(percorso_temp):
             os.remove(percorso_temp)
         return jsonify({"stato": "errore", "messaggio": str(e)}), 500
-
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
