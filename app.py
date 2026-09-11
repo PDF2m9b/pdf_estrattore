@@ -231,38 +231,83 @@ def api_converti():
             "messaggio": "Rate limit superato. Riprova tra un'ora."
         }), 429
     
-    # Verifica che la richiesta arrivi da RapidAPI (opzionale, commentata per ora)
-    # chiave_ricevuta = request.headers.get('X-RapidAPI-Proxy-Secret')
-    # chiave_attesa = os.environ.get('RAPIDAPI_PROXY_SECRET', 'test-locale')
-    # if chiave_attesa != 'test-locale' and chiave_ricevuta != chiave_attesa:
-    #     return jsonify({"stato": "errore", "messaggio": "Autenticazione fallita"}), 401
-    
+    # VALIDAZIONE 1: file presente
     if 'file' not in request.files:
         return jsonify({"stato": "errore", "messaggio": "Nessun file inviato"}), 400
     
     file_caricato = request.files['file']
+    
+    # VALIDAZIONE 2: nome file valido
     if file_caricato.filename == '':
         return jsonify({"stato": "errore", "messaggio": "Nome file vuoto"}), 400
     
-    nome_file = file_caricato.filename.lower()
-    if not (nome_file.endswith('.csv') or nome_file.endswith('.xlsx') or nome_file.endswith('.xls')):
-        return jsonify({"stato": "errore", "messaggio": "Formato non supportato"}), 400
+    # VALIDAZIONE 3: nome file sicuro (no path traversal)
+    nome_file_originale = file_caricato.filename
+    nome_file = nome_file_originale.lower()
     
-    percorso_temp = os.path.join('instance', 'temp_converti_' + file_caricato.filename)
-    file_caricato.save(percorso_temp)
+    if '/' in nome_file_originale or '\\' in nome_file_originale or '..' in nome_file_originale:
+        return jsonify({"stato": "errore", "messaggio": "Nome file non valido"}), 400
+    
+    # VALIDAZIONE 4: estensione supportata
+    if not (nome_file.endswith('.csv') or nome_file.endswith('.xlsx') or nome_file.endswith('.xls')):
+        return jsonify({"stato": "errore", "messaggio": "Formato non supportato. Usa CSV o Excel"}), 400
+    
+    # VALIDAZIONE 5: file non vuoto
+    file_caricato.seek(0, 2)  # Vai alla fine del file
+    dimensione = file_caricato.tell()
+    file_caricato.seek(0)  # Torna all'inizio
+    
+    if dimensione == 0:
+        return jsonify({"stato": "errore", "messaggio": "Il file è vuoto"}), 400
+    
+    # VALIDAZIONE 6: file non troppo piccolo (probabilmente corrotto)
+    if dimensione < 10:
+        return jsonify({"stato": "errore", "messaggio": "Il file è troppo piccolo per essere valido"}), 400
+    
+    # Salvataggio temporaneo con nome sicuro
+    import time
+    timestamp = str(int(time.time()))
+    
+    if nome_file.endswith('.csv'):
+        percorso_temp = os.path.join('instance', 'temp_converti_' + timestamp + '.csv')
+    elif nome_file.endswith('.xlsx'):
+        percorso_temp = os.path.join('instance', 'temp_converti_' + timestamp + '.xlsx')
+    else:
+        percorso_temp = os.path.join('instance', 'temp_converti_' + timestamp + '.xls')
     
     try:
+        file_caricato.save(percorso_temp)
+        
+        # Prova a convertire
         from trasforma_dati import normalizza_e_converti_foglio
         risultato = normalizza_e_converti_foglio(percorso_temp)
         
+        # Pulizia file temporaneo
         if os.path.exists(percorso_temp):
             os.remove(percorso_temp)
         
+        # VALIDAZIONE 7: risultato valido
+        if risultato.get('stato') == 'errore':
+            return jsonify(risultato), 422
+        
+        # VALIDAZIONE 8: almeno una riga di dati
+        if risultato.get('info_file', {}).get('numero_righe_estratte', 0) == 0:
+            return jsonify({
+                "stato": "errore", 
+                "messaggio": "Il file non contiene righe valide dopo la pulizia"
+            }), 422
+        
         return jsonify(risultato), 200
+        
     except Exception as e:
+        # Pulizia in caso di errore
         if os.path.exists(percorso_temp):
             os.remove(percorso_temp)
-        return jsonify({"stato": "errore", "messaggio": str(e)}), 500
+        
+        return jsonify({
+            "stato": "errore", 
+            "messaggio": f"Errore durante l'elaborazione: {str(e)}"
+        }), 500
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
