@@ -4,6 +4,32 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from estrai import EstrattorePDF
+import logging
+from logging.handlers import RotatingFileHandler
+
+def setup_logging():
+    if not os.path.exists('instance'):
+        os.makedirs('instance')
+    
+    handler = RotatingFileHandler(
+        'instance/api.log', 
+        maxBytes=1024*1024,
+        backupCount=5
+    )
+    
+    formatter = logging.Formatter(
+        '[%(asctime)s] [%(levelname)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    
+    logger = logging.getLogger('datacleaner_api')
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+    
+    return logger
+
+api_logger = setup_logging()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'chiave-segreta-temporanea'
@@ -226,6 +252,7 @@ def api_converti():
     # RATE LIMITING
     ip_cliente = request.remote_addr
     if not check_rate_limit(ip_cliente):
+        api_logger.warning(f"RATE LIMIT | IP: {ip_cliente}")
         return jsonify({
             "stato": "errore", 
             "messaggio": "Rate limit superato. Riprova tra un'ora."
@@ -233,38 +260,44 @@ def api_converti():
     
     # VALIDAZIONE 1: file presente
     if 'file' not in request.files:
+        api_logger.warning(f"NO FILE | IP: {ip_cliente}")
         return jsonify({"stato": "errore", "messaggio": "Nessun file inviato"}), 400
     
     file_caricato = request.files['file']
     
     # VALIDAZIONE 2: nome file valido
     if file_caricato.filename == '':
+        api_logger.warning(f"NOME VUOTO | IP: {ip_cliente}")
         return jsonify({"stato": "errore", "messaggio": "Nome file vuoto"}), 400
     
-    # VALIDAZIONE 3: nome file sicuro (no path traversal)
+    # VALIDAZIONE 3: nome file sicuro
     nome_file_originale = file_caricato.filename
     nome_file = nome_file_originale.lower()
     
     if '/' in nome_file_originale or '\\' in nome_file_originale or '..' in nome_file_originale:
+        api_logger.warning(f"PATH TRAVERSAL | IP: {ip_cliente} | File: {nome_file_originale}")
         return jsonify({"stato": "errore", "messaggio": "Nome file non valido"}), 400
     
     # VALIDAZIONE 4: estensione supportata
     if not (nome_file.endswith('.csv') or nome_file.endswith('.xlsx') or nome_file.endswith('.xls')):
+        api_logger.warning(f"FORMATO NON SUPPORTATO | IP: {ip_cliente} | File: {nome_file_originale}")
         return jsonify({"stato": "errore", "messaggio": "Formato non supportato. Usa CSV o Excel"}), 400
     
     # VALIDAZIONE 5: file non vuoto
-    file_caricato.seek(0, 2)  # Vai alla fine del file
+    file_caricato.seek(0, 2)
     dimensione = file_caricato.tell()
-    file_caricato.seek(0)  # Torna all'inizio
+    file_caricato.seek(0)
     
     if dimensione == 0:
+        api_logger.warning(f"FILE VUOTO | IP: {ip_cliente} | File: {nome_file_originale}")
         return jsonify({"stato": "errore", "messaggio": "Il file è vuoto"}), 400
     
-    # VALIDAZIONE 6: file non troppo piccolo (probabilmente corrotto)
+    # VALIDAZIONE 6: file non troppo piccolo
     if dimensione < 10:
+        api_logger.warning(f"FILE TROPPO PICCOLO | IP: {ip_cliente} | File: {nome_file_originale} | Dim: {dimensione}")
         return jsonify({"stato": "errore", "messaggio": "Il file è troppo piccolo per essere valido"}), 400
     
-    # Salvataggio temporaneo con nome sicuro
+    # Salvataggio temporaneo
     import time
     timestamp = str(int(time.time()))
     
@@ -275,34 +308,42 @@ def api_converti():
     else:
         percorso_temp = os.path.join('instance', 'temp_converti_' + timestamp + '.xls')
     
+    # LOG INIZIO ELABORAZIONE
+    api_logger.info(f"RICHIESTA | IP: {ip_cliente} | File: {nome_file_originale} | Dim: {dimensione} byte")
+    
     try:
         file_caricato.save(percorso_temp)
         
-        # Prova a convertire
         from trasforma_dati import normalizza_e_converti_foglio
         risultato = normalizza_e_converti_foglio(percorso_temp)
         
-        # Pulizia file temporaneo
         if os.path.exists(percorso_temp):
             os.remove(percorso_temp)
         
         # VALIDAZIONE 7: risultato valido
         if risultato.get('stato') == 'errore':
+            api_logger.error(f"ERRORE CONVERSIONE | IP: {ip_cliente} | File: {nome_file_originale}")
             return jsonify(risultato), 422
         
-        # VALIDAZIONE 8: almeno una riga di dati
-        if risultato.get('info_file', {}).get('numero_righe_estratte', 0) == 0:
+        # VALIDAZIONE 8: almeno una riga
+        righe = risultato.get('info_file', {}).get('numero_righe_estratte', 0)
+        if righe == 0:
+            api_logger.warning(f"NESSUN DATO | IP: {ip_cliente} | File: {nome_file_originale}")
             return jsonify({
                 "stato": "errore", 
                 "messaggio": "Il file non contiene righe valide dopo la pulizia"
             }), 422
         
+        # LOG SUCCESSO
+        api_logger.info(f"SUCCESSO | IP: {ip_cliente} | File: {nome_file_originale} | Righe: {righe}")
+        
         return jsonify(risultato), 200
         
     except Exception as e:
-        # Pulizia in caso di errore
         if os.path.exists(percorso_temp):
             os.remove(percorso_temp)
+        
+        api_logger.error(f"ECCEZIONE | IP: {ip_cliente} | Errore: {str(e)}")
         
         return jsonify({
             "stato": "errore", 
